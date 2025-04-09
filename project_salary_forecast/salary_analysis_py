@@ -1,0 +1,216 @@
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+from scipy.stats import zscore
+from statsmodels.tsa.vector_ar.var_model import VAR
+from statsmodels.tsa.stattools import adfuller
+from sklearn.model_selection import train_test_split
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.stattools import durbin_watson
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from pmdarima import auto_arima
+from statsmodels.tsa.arima.model import ARIMA
+
+# Uploading files
+salary_df = pd.read_csv(r"C:\Users\ASUS\OneDrive\Desktop\Python assignment\Salary.csv", sep=';')
+forc_df = pd.read_csv(r"C:\Users\ASUS\OneDrive\Desktop\Python assignment\Forc.csv", sep=';')
+
+# Checking salary file
+print(salary_df.head())
+print(salary_df.info())
+print(salary_df.describe())
+
+# Visualization 
+# Histogram salary now (salnow)
+plt.figure(figsize=(8, 5))
+sns.histplot(salary_df['salnow'], bins=30, kde=True)
+plt.title("Current salary distribution (salnow)")
+plt.xlabel("Salary")
+plt.ylabel("Frequency")
+plt.show()
+
+# Boxplot salary vs gender
+plt.figure(figsize=(8, 5))
+sns.boxplot(x='sex', y='salnow', data=salary_df)
+plt.title("Boxplot salary vs gender")
+plt.xlabel("Sex (0 = Male, 1 = Female)")
+plt.ylabel("Salary")
+plt.show()
+
+# Scatterplot: Experience vs salary
+plt.figure(figsize=(8, 5))
+sns.scatterplot(x='work', y='salnow', data=salary_df)
+plt.title("Scatterplot: Work experience vs Salary")
+plt.xlabel("Experience (years)")
+plt.ylabel("Salary")
+plt.show()
+
+# Heatmap correlation matrix
+plt.figure(figsize=(10, 8))
+sns.heatmap(salary_df.corr(), annot=True, cmap='coolwarm', fmt=".2f")
+plt.title("Correlation Matrix for Salary Data")
+plt.show()
+
+# Outlier detection using z-score analysis
+salary_df['z_scores'] = zscore(salary_df['salnow'])
+outliers = salary_df[(salary_df['z_scores'] > 3) | (salary_df['z_scores'] < -3)]
+print("\n outliers Salary.csv:")
+print(outliers)
+
+# Converting variables 
+salary_df['log_salnow'] = np.log(salary_df['salnow'])
+salary_df['log_salbeg'] = np.log(salary_df['salbeg'])
+salary_df['log_work'] = np.log(salary_df['work'] + 1)
+
+# Removing age because of multicollinearity (keeping age_sq)
+salary_df['age_sq'] = salary_df['age'] ** 2
+salary_df['work_sq'] = salary_df['work'] ** 2
+salary_df['age_edlevel'] = salary_df['age'] * salary_df['edlevel']
+salary_df['work_edlevel'] = salary_df['work'] * salary_df['edlevel']
+
+# Multicollinearity check (VIF)
+X_vif = salary_df[['log_salbeg', 'age_sq', 'edlevel', 'work', 'work_sq', 'sex', 'age_edlevel', 'work_edlevel']]
+X_vif = sm.add_constant(X_vif)
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_vif.columns
+vif_data["VIF"] = [variance_inflation_factor(X_vif.values, i) for i in range(X_vif.shape[1])]
+print("VIF:", vif_data)
+
+# dividing into test train
+X = X_vif.drop(columns=["const"])
+X = sm.add_constant(X)
+y = salary_df['log_salnow']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# OLS model
+salary_model = sm.OLS(y_train, X_train).fit()
+y_pred_salary = salary_model.predict(X_test)
+
+# R-squared for OLS
+print(f"\nR-squared for OLS Model: {salary_model.rsquared:.4f}")
+
+# Evaluating results
+mae_salary = mean_absolute_error(y_test, y_pred_salary)
+rmse_salary = np.sqrt(mean_squared_error(y_test, y_pred_salary))
+print(f"\n Salary Model - MAE: {mae_salary:.4f}, RMSE: {rmse_salary:.4f}")
+
+# Histogram residuals OLS
+plt.figure(figsize=(8, 5))
+sns.histplot(salary_model.resid, bins=30, kde=True)
+plt.title("Histogram residuals OLS")
+plt.show()
+
+# Q-Q plot for residuals
+sm.qqplot(salary_model.resid, line='s')
+plt.title("Q-Q Plot OLS model residuals")
+plt.show()
+
+# Testing for heteroscedasticity and autocorrelation
+bp_test_salary = het_breuschpagan(salary_model.resid, X_train)
+dw_test = durbin_watson(salary_model.resid)
+
+print(f"Breusch-Pagan p-value: {bp_test_salary[1]:.4f} (test for heteroskedasticity)")
+if bp_test_salary[1] < 0.05:
+    print("Possible heteroskedasticity detected")
+else:
+    print("No significant heteroskedasticity.")
+
+print(f"Durbin-Watson test: {dw_test:.4f} (test for autocorrelation)")
+if dw_test < 1.5 or dw_test > 2.5:
+    print("Possible autocorrelation detected")
+else:
+    print("No significant autocorrelation.")
+
+# Forecasting (VAR & ARIMA) 
+selected_vars = ['Inv', 'Unem', 'FTI']  # Changed RTSV into FTI (had issues with RTSV)
+forc_df = forc_df[selected_vars]
+
+print("\n Checking stationarity using ADF test:")
+
+for var in selected_vars:
+    adf_test = adfuller(forc_df[var].dropna())
+    p_value = adf_test[1]
+    print(f"  - ADF test for {var}: p-value = {p_value:.4f}")
+
+    if p_value > 0.05:
+        print(f" {var} is not stationary. Differencing applied.")
+        forc_df[var] = forc_df[var].diff().dropna()  # Using diff
+    else:
+        print(f" {var} is already stationary.")
+
+# Dropping NaN
+# Checking for missing values before dropping them
+
+print("\nMissing values before dropping:")
+print(forc_df.isnull().sum())
+
+forc_df.dropna(inplace=True)
+
+# Dividing into train test
+train_size = int(len(forc_df) * 0.7)
+df_train = forc_df.iloc[:train_size]
+df_test = forc_df.iloc[train_size:]
+
+# maxlags optimization
+max_safe_lags = min(5, len(df_train) // (len(selected_vars) + 1))
+lag_order = VAR(df_train).select_order(maxlags=max_safe_lags)
+best_lag = lag_order.aic
+
+#  training VAR
+var_model = VAR(df_train).fit(best_lag)
+var_predictions = var_model.forecast(df_train.values, steps=len(df_test))
+var_pred_df = pd.DataFrame(var_predictions, index=df_test.index, columns=selected_vars)
+
+# Evaluating VAR
+mae_var = mean_absolute_error(df_test['Inv'], var_pred_df['Inv'])
+rmse_var = np.sqrt(mean_squared_error(df_test['Inv'], var_pred_df['Inv']))
+print(f" VAR - MAE: {mae_var:.4f}, RMSE: {rmse_var:.4f}")
+
+# Histogram residuals VAR
+residuals_var = var_model.resid
+print("\nVAR Model Residuals Preview:")
+print(residuals_var.head()) 
+
+plt.figure(figsize=(8, 5))
+sns.histplot(residuals_var.iloc[:, 0], bins=30, kde=True)  # Using .iloc[:, 0] instead [:, 0]
+plt.title("Histogram residuals VAR (Inv)")
+plt.show()
+
+# Forecasting ARIMA
+arima_model = auto_arima(df_train['Inv'], seasonal=True, m=4, stepwise=True, trace=True)
+best_order = arima_model.order
+arima_model = ARIMA(df_train['Inv'], order=best_order).fit()
+arima_pred = arima_model.forecast(steps=len(df_test))
+
+mae_arima = mean_absolute_error(df_test['Inv'], arima_pred)
+
+# Summary MAE
+mae_results = pd.DataFrame({
+    "Model": ["OLS", "VAR", "ARIMA"],
+    "MAE": [mae_salary, mae_var, mae_arima]
+})
+
+print("\n MAE comparison:")
+print(mae_results)
+
+# Forecasting plots (Including all models: VAR, ARIMA, OLS)
+plt.figure(figsize=(10, 5))
+plt.plot(df_test.index, df_test['Inv'], label="Actual GDP (Inv)", color="green")
+plt.plot(df_test.index, var_pred_df['Inv'], label="VAR Forecast", linestyle="dotted", color="blue")
+plt.plot(df_test.index, arima_pred, label="ARIMA Forecast", linestyle="dashed", color="red")
+
+# OLS forecasting
+if 'log_salnow' in salary_df.columns:
+    y_pred_ols = salary_model.predict(X_test)
+    plt.plot(X_test.index, y_pred_ols, label="OLS Prediction", linestyle="dashdot", color="purple")
+
+plt.xlabel("Time")
+plt.ylabel("GDP Change / Salary Prediction")
+plt.legend()
+plt.title("Forecast Comparison: OLS vs VAR vs ARIMA")
+plt.show()
+
