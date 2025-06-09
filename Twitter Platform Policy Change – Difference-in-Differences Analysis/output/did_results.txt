@@ -1,0 +1,47 @@
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:       SearchVolumeNorm   R-squared:                       0.165
+Model:                            OLS   Adj. R-squared:                  0.155
+Method:                 Least Squares   F-statistic:                     2.869
+Date:                Thu, 17 Apr 2025   Prob (F-statistic):              0.136
+Time:                        18:54:40   Log-Likelihood:                -2362.5
+No. Observations:                1780   AIC:                             4767.
+Df Residuals:                    1759   BIC:                             4882.
+Df Model:                          20                                         
+Covariance Type:              cluster                                         
+======================================================================================
+                         coef    std err          z      P>|z|      [0.025      0.975]
+--------------------------------------------------------------------------------------
+const                  0.2619      0.454      0.576      0.564      -0.629       1.152
+Treatment             -0.4382      0.196     -2.234      0.025      -0.823      -0.054
+Post                   1.0731      0.353      3.037      0.002       0.381       1.766
+Did                   -0.2586      0.366     -0.708      0.479      -0.975       0.458
+time_trend            -0.0033      0.003     -0.972      0.331      -0.010       0.003
+trend_x_treat          0.0055      0.003      1.580      0.114      -0.001       0.012
+platform_Instagram  2.207e-15   1.15e-14      0.192      0.848   -2.04e-14    2.48e-14
+platform_LinkedIn    1.45e-15   9.13e-15      0.159      0.874   -1.64e-14    1.93e-14
+platform_TikTok       -0.0104      0.058     -0.178      0.858      -0.124       0.103
+platform_Twitter      -0.4382      0.196     -2.234      0.025      -0.823      -0.054
+platform_YouTube    1.023e-15   9.65e-15      0.106      0.916   -1.79e-14    1.99e-14
+month_2               -0.1457      0.085     -1.708      0.088      -0.313       0.021
+month_3               -0.0856      0.112     -0.766      0.444      -0.304       0.133
+month_4               -0.1364      0.163     -0.835      0.404      -0.457       0.184
+month_5               -0.1654      0.190     -0.870      0.384      -0.538       0.207
+month_6               -0.1123      0.274     -0.409      0.682      -0.650       0.425
+month_7               -0.0330      0.328     -0.101      0.920      -0.675       0.609
+month_8               -0.2340      0.300     -0.781      0.435      -0.821       0.353
+month_9               -0.3143      0.303     -1.036      0.300      -0.909       0.280
+month_10              -0.3363      0.280     -1.202      0.229      -0.885       0.212
+month_11              -0.6111      0.282     -2.169      0.030      -1.163      -0.059
+month_12              -0.5428      0.435     -1.249      0.212      -1.395       0.309
+==============================================================================
+Omnibus:                       79.003   Durbin-Watson:                   2.006
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              110.108
+Skew:                          -0.420   Prob(JB):                     1.23e-24
+Kurtosis:                       3.883   Cond. No.                     1.84e+19
+==============================================================================
+
+Notes:
+[1] Standard Errors are robust to cluster correlation (cluster)
+[2] The smallest eigenvalue is 1.88e-31. This might indicate that there are
+strong multicollinearity problems or that the design matrix is singular.
