@@ -1,0 +1,107 @@
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+import seaborn as sns
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+# Load dataset
+file_path = "../data/Cleaned_Gravity_Model_Dataset.csv"
+df = pd.read_csv(file_path)
+
+# Clean column names
+df.columns = df.columns.str.strip()
+
+# Convert relevant columns to numeric
+cols_to_numeric = ["Migration", "Pop_From", "Pop_To", "Jobs_To", "HousePrices_To", "TravelTime"]
+df[cols_to_numeric] = df[cols_to_numeric].apply(pd.to_numeric, errors="coerce")
+df = df.dropna(subset=cols_to_numeric)
+
+# Log-transform variables
+df['ln_Pop_From'] = np.log(df['Pop_From'] + 1e-5)
+df['ln_Pop_To'] = np.log(df['Pop_To'] + 1e-5)
+df['ln_Jobs_To'] = np.log(df['Jobs_To'] + 1e-5)
+df['ln_HousePrices_To'] = np.log(df['HousePrices_To'] + 1e-5)
+df['ln_TravelTime'] = np.log(df['TravelTime'] + 1e-5)
+
+# Model 1: PPML with full specification
+X1 = df[['ln_Pop_From', 'ln_Pop_To', 'ln_Jobs_To', 'ln_HousePrices_To', 'ln_TravelTime']]
+X1 = sm.add_constant(X1)
+y = df['Migration']
+
+model_ppml = sm.GLM(y, X1, family=sm.families.Poisson(link=sm.families.links.Log()))
+results_ppml = model_ppml.fit()
+print(results_ppml.summary())
+
+# Check multicollinearity
+vif_data = pd.DataFrame()
+vif_data['Variable'] = X1.columns
+vif_data['VIF'] = [variance_inflation_factor(X1.values, i) for i in range(X1.shape[1])]
+print("\nVIF Table:\n", vif_data)
+
+# Drop ln_Pop_To for alternative specification
+X2 = df[['ln_Pop_From', 'ln_Jobs_To', 'ln_HousePrices_To', 'ln_TravelTime']]
+X2 = sm.add_constant(X2)
+
+# Model 2: PPML without ln_Pop_To
+model_ppml_alt = sm.GLM(y, X2, family=sm.families.Poisson(link=sm.families.links.Log()))
+results_ppml_alt = model_ppml_alt.fit()
+print(results_ppml_alt.summary())
+
+# Check overdispersion
+deviance = results_ppml_alt.deviance
+df_resid = results_ppml_alt.df_resid
+dispersion_ratio = deviance / df_resid
+print("\nOverdispersion Check:")
+print("Deviance / DF =", round(dispersion_ratio, 3))
+
+# Model 3: Negative Binomial (if overdispersed)
+model_nb = sm.GLM(y, X2, family=sm.families.NegativeBinomial())
+results_nb = model_nb.fit()
+print(results_nb.summary())
+
+# Final VIF check
+vif_data_nb = pd.DataFrame()
+vif_data_nb["Variable"] = X2.columns
+vif_data_nb["VIF"] = [variance_inflation_factor(X2.values, i) for i in range(X2.shape[1])]
+print("\nVIF Table (NB model):\n", vif_data_nb)
+
+# Plot: Distribution of non-zero migration flows
+sns.histplot(df[df['Migration'] > 0]['Migration'], bins=50, kde=True, log_scale=True)
+plt.title('Distribution of Non-Zero Migration Flows (Log Scale)')
+plt.xlabel('Migration Flow (Log)')
+plt.ylabel('Frequency')
+plt.tight_layout()
+plt.savefig("../output/migration_distribution.png")
+plt.close()
+
+# Plot: Correlation matrix
+corr_vars = df[['ln_Pop_From', 'ln_Jobs_To', 'ln_HousePrices_To', 'ln_TravelTime']]
+sns.heatmap(corr_vars.corr(), annot=True, cmap='coolwarm', vmin=-1, vmax=1)
+plt.title('Correlation Matrix of Log-Transformed Variables')
+plt.tight_layout()
+plt.savefig("../output/correlation_matrix.png")
+plt.close()
+
+# Plot: Predicted vs Actual (NB Model)
+df['Predicted_NB'] = results_nb.predict()
+sns.scatterplot(x='Migration', y='Predicted_NB', data=df, alpha=0.3)
+plt.plot([0, 1200], [0, 1200], 'r--')
+plt.xscale('log')
+plt.yscale('log')
+plt.title('Predicted vs. Actual Migration (NB Model)')
+plt.xlabel('Actual Migration (Log)')
+plt.ylabel('Predicted Migration (Log)')
+plt.tight_layout()
+plt.savefig("../output/predicted_vs_actual_nb.png")
+plt.close()
+
+# Plot: Migration vs Travel Time
+sns.scatterplot(x='TravelTime', y='Migration', data=df, alpha=0.3)
+plt.yscale('log')
+plt.title('Migration vs. Travel Time (Log Scale)')
+plt.xlabel('Travel Time (Hours)')
+plt.ylabel('Migration Flow (Log)')
+plt.tight_layout()
+plt.savefig("../output/migration_vs_travel_time.png")
+plt.close()
