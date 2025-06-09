@@ -18,9 +18,9 @@ This project analyzes the causal effect of retirement on depression levels acros
 - IV estimates suggest a statistically significant improvement in mental well-being after retirement, when accounting for endogeneity
 
 # Files
-- `retirement_iv.do` – main STATA script (optional)
+- `retirement_iv.do` – main STATA script 
 - `report.pdf` – project write-up and interpretation
-- `plots/` – regression outputs and coefficient plots (if available)
+- `plots/` – regression outputs and coefficient plots 
 
 # Status
 Coursework project in Applied Econometrics at Jönköping International Business School (MSc).
